@@ -34,7 +34,7 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-    
+
     <build>
         <plugins>
             <plugin>
@@ -46,19 +46,55 @@
                     <target>1.8</target>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>1.6.0</version>
-                <configuration>
-                    <executable>java</executable>
-                    <arguments>
-                        <argument>-classpath</argument>
-                        <classpath />
-                        <argument>com.example.AkkaQuickstart</argument>
-                    </arguments>
-                </configuration>
-            </plugin>
+            
+                <plugin>
+			      <!-- Build an executable JAR -->
+			      <groupId>org.apache.maven.plugins</groupId>
+			      <artifactId>maven-jar-plugin</artifactId>
+			      <version>3.1.0</version>
+			      <configuration>
+			        <archive>
+			          <manifest>
+			            <addClasspath>true</addClasspath>
+			            <classpathPrefix>lib/</classpathPrefix>
+			            <mainClass>com.example.Main</mainClass>
+			          </manifest>
+			        </archive>
+	          		  <descriptorRefs>
+	          		    <descriptorRef>jar-test</descriptorRef>
+	          		  </descriptorRefs>			        
+			      </configuration>
+			    </plugin>
+            
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-shade-plugin</artifactId>
+			<version>3.2.4</version>
+			<executions>
+			  <execution>
+			    <phase>package</phase>
+			    <goals>
+			      <goal>shade</goal>
+			    </goals>
+			    
+			    <configuration>
+                        	<finalName>${project.artifactId}-${project.version}-with-dependencies</finalName>
+			    
+			      <transformers>
+				<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+				  <mainClass>com.example.Main</mainClass>
+
+				</transformer>
+				<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+				    <resource>reference.conf</resource>
+				</transformer>
+				
+				
+			      </transformers>
+			    </configuration>
+			  </execution>
+			</executions>
+      		</plugin>
         </plugins>
     </build>
 </project>

@@ -15,7 +15,7 @@ import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class Actor extends UntypedAbstractActor {
+public class MyActor extends UntypedAbstractActor {
 	private final LoggingAdapter log = Logging.getLogger(getContext().getSystem(), this); // Logger attached to actor
 	public final ActorRef self;
 
@@ -32,12 +32,14 @@ public class Actor extends UntypedAbstractActor {
 
 	private Map<Integer, Integer> register = new HashMap<Integer, Integer>();
 	private int timestamp = 0;
-
+	
+	private int getMethod;
+	
 	private ArrayList<WriteAckMsg> curr_ack_put = new ArrayList<WriteAckMsg>();
 	private ArrayList<ReadAckMsg> curr_ack_get = new ArrayList<ReadAckMsg>();
 	private ArrayList<WriteFinishedMsg> curr_ack_write = new ArrayList<WriteFinishedMsg>();
 
-	public Actor(int _id, int _N, int _f) {
+	public MyActor(int _id, int _N, int _f, int _getMethod) {
 		id = _id;
 		N = _N;
 		f = _f;
@@ -51,9 +53,9 @@ public class Actor extends UntypedAbstractActor {
 	/**
 	 * Static function creating actor
 	 */
-	public static Props createActor(int id, int N, int f) {
-		return Props.create(Actor.class, () -> {
-			return new Actor(id, N, f);
+	public static Props createActor(int id, int N, int f, int getMethod) {
+		return Props.create(MyActor.class, () -> {
+			return new MyActor(id, N, f, getMethod);
 		});
 	}
 
@@ -62,12 +64,12 @@ public class Actor extends UntypedAbstractActor {
 	}
 
 	public void log_info(String string) {
-		log.info("State: " + state + " - " + string);
+		log.info(string);
 	}
 
 	public void putReceived(PutMsg msg, ActorRef sender) {
 		curr_operation++;
-		log_info("[✓✓✓] Starting put operation (curr_iter: " + msg.currIter + ", curr_op: " + curr_operation + ", until: " + msg.M + ").");
+		log_info("Starting put operation (curr_iter: " + msg.currIter + ", curr_op: " + curr_operation + ", until: " + msg.M + ").");
 		state = 1;
 
 		log_info("Sending write acknowledgement requests.");
@@ -86,11 +88,10 @@ public class Actor extends UntypedAbstractActor {
 	
 	public void confirmPut(WriteAckMsg msg, ActorRef sender) {
 		curr_ack_put.add(msg);
-		log_info("[X] [" + curr_ack_put.size() + ", " + N / 2 + ", " + (curr_ack_put.size() >= N / 2)
-				+ "] Acknowledge/put answer received from " + sender.path().name() + ". Received " + msg);
+		log_info("Acknowledge/put answer received from " + sender.path().name() + ". Received " + msg);
 
-		if (curr_ack_put.size() >= N / 2) {
-			log_info("[✓] Got answers from a majority of actors. Continuing put operation.");
+		if (curr_ack_put.size() >= N-f) {
+			log_info("PUT : Got answers from a majority of actors. Continuing put operation.");
 			WriteAckMsg max_ack = Collections.max(curr_ack_put,
 					(a, b) -> ((Integer) a.timestamp).compareTo(b.timestamp));
 
@@ -103,7 +104,7 @@ public class Actor extends UntypedAbstractActor {
 			}
 
 			if (same_value_for_max_timestamp) {
-				log_info("[✓] Got coherent maximum timestamp. Continuing put operation (key: " + msg.k + ", value: "
+				log_info("Got coherent maximum timestamp. Continuing put operation (key: " + msg.k + ", value: "
 						+ msg.v + ", timestamp: " + (timestamp + 1) + ").");				
 				
 				state = 3;
@@ -113,7 +114,7 @@ public class Actor extends UntypedAbstractActor {
 				}
 
 			} else {
-				log_info("[X] Got incoherent timestamp. Cancelling put operation.");
+				log_info("Got incoherent timestamp. Cancelling put operation.");
 			}
 
 			curr_ack_put.clear();
@@ -122,7 +123,7 @@ public class Actor extends UntypedAbstractActor {
 
 	public void getReceived(GetMsg msg, ActorRef sender) {
 		curr_operation++;
-		log_info("[✓✓✓] Starting get operation (curr_iter: " + msg.currIter + ", curr_op: " + curr_operation + ", until: " + msg.M + ").");
+		log_info("Starting get operation (curr_iter: " + msg.currIter + ", curr_op: " + curr_operation + ", until: " + msg.M + ").");
 		state = 2;
 
 		log_info("Sending read acknowledgement requests.");
@@ -142,8 +143,8 @@ public class Actor extends UntypedAbstractActor {
 		log_info("Acknowledge/get answer " + msg + " received from " + sender.path().name() + ".");
 		curr_ack_get.add(msg);
 
-		if (curr_ack_get.size() >= N / 2) {
-			log_info("Got answers from a majority of actors. Continuing get operation.");
+		if (curr_ack_get.size() >= N-f) {
+			log_info("GET: Got answers from a majority of actors. Quorum achieved, continuing.");
 			ReadAckMsg max_ack = Collections.max(curr_ack_get,
 					(a, b) -> ((Integer) a.timestamp).compareTo(b.timestamp));
 
@@ -160,7 +161,7 @@ public class Actor extends UntypedAbstractActor {
 				
 				state = 3;
 				for (ActorRef ref : processes.references) {
-					ref.tell(new WriteMsg(msg.k, msg.v, timestamp + 1, true, curr_operation, true, msg.currIter, msg.M), self);
+					ref.tell(new WriteMsg(msg.k, msg.v, timestamp, true, curr_operation, true, msg.currIter, msg.M), self);
 				}
 				
 				log_info("Get operation complete. Returning <k, v, t : (" + msg.k + ", " + max_ack.v + ", "
@@ -194,7 +195,7 @@ public class Actor extends UntypedAbstractActor {
 		curr_ack_write.add(msg);
 
 		if (curr_ack_write.size() >= N / 2) {
-			log_info("Got answers from a majority of actors. Most individual writes were completed.");
+			log_info("WRITE FINISHED : Got answers from a majority of actors. Quorum achieved, continuing.");
 			curr_ack_write.clear();
 
 			if (msg.readOrigin) {
@@ -204,22 +205,36 @@ public class Actor extends UntypedAbstractActor {
 				log_info("Put operation complete with (k = " + msg.k + ", v = " + msg.v + "); new timestamp: " + msg.timestamp + ".");
 			}
 			
-			if (msg.readOrigin) {
-				if (msg.currIter < msg.M) {
-					self.tell(new GetMsg(msg.k, msg.currIter + 1, msg.M), self);
+			if (getMethod == 1) {
+				if (msg.readOrigin) {
+					if (msg.currIter < msg.M) {
+						self.tell(new GetMsg(msg.k, msg.currIter + 1, msg.M), self);
+					} else {
+						// DIE
+					}
+				} else {
+					if (msg.currIter < msg.M) {
+						self.tell(new PutMsg(msg.k, msg.v + msg.M, msg.launchGet, msg.currIter+1, msg.M), self);
+					} else if (msg.launchGet) {
+						self.tell(new GetMsg(msg.k, 0, msg.M), self);
+					}
 				}
 			} else {
 				if (msg.currIter < msg.M) {
-					self.tell(new PutMsg(msg.k, msg.v + msg.M, msg.launchGet, msg.currIter+1, msg.M), self);
-				} else if (msg.launchGet) {
-					self.tell(new GetMsg(msg.k, 0, msg.M), self);
+					if (msg.readOrigin) {
+						self.tell(new PutMsg(msg.k, msg.v + msg.M, msg.launchGet, msg.currIter+1, msg.M), self);
+					} else {
+						self.tell(new GetMsg(msg.k, msg.currIter+1, msg.M), self);
+					}
+				} else {
+					// DIE
 				}
-			}			
+			}
 		}
 	}
 
 	public void launch(LaunchMsg msg) {
-		self.tell(new PutMsg(1, msg.i, false, 1, msg.M), ActorRef.noSender());
+		self.tell(new PutMsg(1, msg.i, msg.launchGet, 1, ((msg.launchGet && getMethod == 0) ? 2*msg.M : msg.M)), self);
 	}
 
 	public void onReceive(Object message) throws Throwable {
