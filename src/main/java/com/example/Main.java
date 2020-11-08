@@ -1,21 +1,29 @@
 package com.example;
 
 import akka.actor.Actor;
+import akka.actor.UntypedAbstractActor;
+import akka.actor.ActorPath;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
+import akka.actor.Props;
+import akka.actor.PoisonPill;
+
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 class Members {
-	public final ArrayList<ActorRef> references;
 	public final String print_string;
+	public Map<ActorRef, Boolean> references = new HashMap<ActorRef, Boolean>();
 
-	public Members(ArrayList<ActorRef> references) {
-		this.references = references;
+	public Members(ArrayList<ActorRef> refs) {
+		for (ActorRef ref : refs) {
+			references.put(ref, true);
+		}
+
 		String s = "[ ";
-		for (ActorRef a : references) {
+		for (ActorRef a : refs) {
 			s += a.path().name() + " ";
 		}
 		s += " ]";
@@ -28,8 +36,10 @@ class Members {
 }
 
 class FaultyMsg {
-	public FaultyMsg() {
-
+	public ActorRef main;
+	
+	public FaultyMsg(ActorRef _main) {
+		main = _main;
 	}
 
 	public String toString() {
@@ -242,18 +252,32 @@ class LaunchMsg {
 	public Integer M;
 	public Integer k;
 	public Integer i;
-	public static Boolean launchGet;
+	public Boolean launchGet;
+	public ActorRef main;
 
-	public LaunchMsg(Integer _k, Integer _M, Integer _i, Boolean _launchGet) {
+	public LaunchMsg(Integer _k, Integer _M, Integer _i, Boolean _launchGet, ActorRef _main) {
 		k = _k;
 		M = _M;
 		i = _i;
 		launchGet = _launchGet;
+		main = _main;
 	}
 
 	public String toString() {
 		return "<Launch(" + M + ", " + i + ">";
 	}
+}
+
+class SystemMsg {
+	public ActorSystem system;
+	
+	public SystemMsg(ActorSystem _system) { 
+		system = _system;
+	}
+}
+
+class CallOfTheVoid {
+	public CallOfTheVoid() { }
 }
 
 public class Main {
@@ -263,9 +287,11 @@ public class Main {
 	
 	public static int M = 3;
 	
-	public static Boolean launchGet = true;
+	public static boolean launchGet = true;
 	public static int getMethod = 0;
-
+	
+	public static Map<ActorRef, Boolean> alive = new HashMap<ActorRef, Boolean>();
+	
 	public static void main(String[] args) throws InterruptedException {
 		Set<String> authorized_true = new HashSet<String>();
 		authorized_true.add("y");
@@ -330,28 +356,34 @@ public class Main {
 			system.log().info("System started with N=" + N);
 
 			ArrayList<ActorRef> references = new ArrayList<>();
-
+			
+			final ActorRef main = system.actorOf(Props.create(MyActor.class, () -> {
+				return new MyActor(0, N, f, getMethod);
+			}), "main");
+			main.tell(new SystemMsg(system), main);
+			
 			for (int i = 0; i < N; i++) {
 				// Instantiates processes
-				final ActorRef a = system.actorOf(MyActor.createActor(i + 1, N, f, getMethod), "" + i);
+				final ActorRef a = system.actorOf(MyActor.createActor(i + 1, N, f, getMethod), "" + (i+1));
 				references.add(a);
 			}
 
 			// Gives each process references to all other processes
-			Members m = new Members(references);
 			for (ActorRef actor : references) {
-				actor.tell(m, ActorRef.noSender());
-			}
+				actor.tell(new Members(references), ActorRef.noSender());
+			} main.tell(new Members(references), ActorRef.noSender());
 
 			List<Integer> actor_indices = IntStream.rangeClosed(0, N - 1).boxed().collect(Collectors.toList());
 			Collections.shuffle(actor_indices);
 
 			for (int i = 0; i < f; i++) {
-				references.get(actor_indices.get(i)).tell(new FaultyMsg(), ActorRef.noSender());
+				references.get(actor_indices.get(i)).tell(new FaultyMsg(main), main);
 			}
 			for (int i = f; i < N; i++) {
-				references.get(actor_indices.get(i)).tell(new LaunchMsg(1, N, i, launchGet), ActorRef.noSender());
-			}
+				references.get(actor_indices.get(i)).tell(new LaunchMsg(1, N, i, launchGet, main), main);
+			} 
+						
+			return;
 		}
 	}
 }

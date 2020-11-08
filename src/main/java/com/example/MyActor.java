@@ -1,6 +1,8 @@
 package com.example;
 
 import akka.actor.ActorRef;
+import akka.actor.ActorSystem;
+import akka.actor.PoisonPill;
 import akka.actor.Props;
 import akka.actor.UntypedAbstractActor;
 import akka.event.Logging;
@@ -9,9 +11,7 @@ import akka.event.LoggingAdapter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -26,6 +26,7 @@ public class MyActor extends UntypedAbstractActor {
 	private int start; // TODO
 
 	private Members processes;
+	private ActorRef main;
 
 	private int curr_operation = 0;
 	private int state = 0;
@@ -38,7 +39,12 @@ public class MyActor extends UntypedAbstractActor {
 	private ArrayList<WriteAckMsg> curr_ack_put = new ArrayList<WriteAckMsg>();
 	private ArrayList<ReadAckMsg> curr_ack_get = new ArrayList<ReadAckMsg>();
 	private ArrayList<WriteFinishedMsg> curr_ack_write = new ArrayList<WriteFinishedMsg>();
-
+	
+	private int curr_ack_void = 0;
+	private int curr_ack_poison = 0;
+	
+	private ActorSystem system;
+	
 	public MyActor(int _id, int _N, int _f, int _getMethod) {
 		id = _id;
 		N = _N;
@@ -59,8 +65,9 @@ public class MyActor extends UntypedAbstractActor {
 		});
 	}
 
-	public void setFaulty(boolean faulty_state) {
+	public void setFaulty(FaultyMsg msg) {
 		state = -1;
+		main = msg.main;
 	}
 
 	public void log_info(String string) {
@@ -73,7 +80,7 @@ public class MyActor extends UntypedAbstractActor {
 		state = 1;
 
 		log_info("Sending write acknowledgement requests.");
-		for (ActorRef ref : processes.references) {
+		for (ActorRef ref : processes.references.keySet()) {
 			ref.tell(new WriteAckReqMsg(msg.k, msg.v, curr_operation, msg.launchGet, msg.currIter, msg.M), self);
 		}
 	}
@@ -108,7 +115,7 @@ public class MyActor extends UntypedAbstractActor {
 						+ msg.v + ", timestamp: " + (timestamp + 1) + ").");				
 				
 				state = 3;
-				for (ActorRef ref : processes.references) {
+				for (ActorRef ref : processes.references.keySet()) {
 					ref.tell(new WriteMsg(msg.k, msg.v, timestamp + 1, false, curr_operation, msg.launchGet,
 							msg.currIter, msg.M), self);
 				}
@@ -127,7 +134,7 @@ public class MyActor extends UntypedAbstractActor {
 		state = 2;
 
 		log_info("Sending read acknowledgement requests.");
-		for (ActorRef ref : processes.references) {
+		for (ActorRef ref : processes.references.keySet()) {
 			ref.tell(new ReadAckReqMsg(msg.k, curr_operation, msg.currIter, msg.M), self);
 		}
 	}
@@ -160,7 +167,7 @@ public class MyActor extends UntypedAbstractActor {
 				log_info("Got coherent maximum timestamp. Continuing get operation.");
 				
 				state = 3;
-				for (ActorRef ref : processes.references) {
+				for (ActorRef ref : processes.references.keySet()) {
 					ref.tell(new WriteMsg(msg.k, msg.v, timestamp, true, curr_operation, true, msg.currIter, msg.M), self);
 				}
 				
@@ -177,11 +184,11 @@ public class MyActor extends UntypedAbstractActor {
 
 	private void writeReceived(WriteMsg msg, ActorRef sender) {
 		log_info("Write operation " + msg + " received from " + sender.path().name() + ".");
-		if (msg.timestamp > timestamp || (msg.timestamp == timestamp && msg.v > register.get(msg.k))) {
+		if (msg.timestamp > timestamp || (msg.timestamp == timestamp && msg.v < register.get(msg.k))) {
 			timestamp = msg.timestamp;
 			register.put(msg.k, msg.v);
 		} else {
-			log_info("Write operation non-effective because of lower timestamp.");
+			log_info("Write operation non-effective because of lower timestamp/higher value.");
 		}
 		WriteFinishedMsg m = new WriteFinishedMsg(msg.k, register.get(msg.k), msg.timestamp, msg.readOrigin,
 				msg.currOperation, msg.launchGet, msg.currIter, msg.M);
@@ -195,6 +202,8 @@ public class MyActor extends UntypedAbstractActor {
 		curr_ack_write.add(msg);
 
 		if (curr_ack_write.size() >= N / 2) {
+			state = 0;
+			
 			log_info("WRITE FINISHED : Got answers from a majority of actors. Quorum achieved, continuing.");
 			curr_ack_write.clear();
 
@@ -210,7 +219,8 @@ public class MyActor extends UntypedAbstractActor {
 					if (msg.currIter < msg.M) {
 						self.tell(new GetMsg(msg.k, msg.currIter + 1, msg.M), self);
 					} else {
-						// DIE
+						log_info("Give me an honorable death.");
+						main.tell(new CallOfTheVoid(), self);
 					}
 				} else {
 					if (msg.currIter < msg.M) {
@@ -227,93 +237,123 @@ public class MyActor extends UntypedAbstractActor {
 						self.tell(new GetMsg(msg.k, msg.currIter+1, msg.M), self);
 					}
 				} else {
-					// DIE
+					log_info("Give me an honorable death.");
+					main.tell(new CallOfTheVoid(), self);
 				}
 			}
 		}
 	}
 
 	public void launch(LaunchMsg msg) {
+		main = msg.main;
 		self.tell(new PutMsg(1, msg.i, msg.launchGet, 1, ((msg.launchGet && getMethod == 0) ? 2*msg.M : msg.M)), self);
 	}
 
 	public void onReceive(Object message) throws Throwable {
-		if (state == -1) {
-			// log_info("Faulty. Couldn't process message: " + message);
-		} else {
-			if (message instanceof Members) {
+		if (id == 0) {
+			if (message instanceof SystemMsg) {
+				system = ((SystemMsg) message).system;
+				
+			} else if (message instanceof Members) {
 				Members m = (Members) message;
 				processes = m;
 				log_info("Received other processes' info.");
-			}
-
-			if (message instanceof FaultyMsg) {
-				log_info("Becoming faulty.");
-				this.setFaulty(true);
-			}
-
-			if (message instanceof LaunchMsg) {
-				log_info("Launching. Starting sequential puts (followed by sequential gets).");
-				LaunchMsg m = (LaunchMsg) message;
-				this.launch(m);
 				
-			} else if (message instanceof PutMsg) {
-				PutMsg m = (PutMsg) message;
-				this.putReceived(m, getSender());
+			} else if (message instanceof CallOfTheVoid && curr_ack_void < N-f) {
+				curr_ack_void++;
+				if (curr_ack_void >= N-f) {
+					log_info("Let the gates of death open.");
+					Thread.sleep(200);
+					for (ActorRef ref : processes.references.keySet()) {
+						ref.tell(PoisonPill.getInstance(), self);
+					} self.tell(PoisonPill.getInstance(), self);
+					system.terminate();
+					log_info("Goodbye Universe.");
+				}
+			} else if (((String) message).equals("Bye World")) {
+				processes.references.replace(getSender(), false);
+			    for(boolean b : processes.references.values()) if(b) return;
+			    
+			    this.finalize();
 			}
+		} else {
+			if (state == -1) {
+				// log_info("Faulty. Couldn't process message: " + message);
+			} else {
+				if (message instanceof Members) {
+					Members m = (Members) message;
+					processes = m;
+					log_info("Received other processes' info.");
+				}
 
-			else if (message instanceof GetMsg) {
-				GetMsg m = (GetMsg) message;
-				this.getReceived(m, getSender());
-			}
+				if (message instanceof FaultyMsg) {
+					log_info("Becoming faulty.");
+					this.setFaulty((FaultyMsg) message);
+				}
 
-			else if (message instanceof WriteMsg) {
-				WriteMsg m = (WriteMsg) message;
-				this.writeReceived(m, getSender());
-			}
+				if (message instanceof LaunchMsg) {
+					log_info("Launching. Starting sequential puts (followed by sequential gets).");
+					LaunchMsg m = (LaunchMsg) message;
+					this.launch(m);
+					
+				} else if (message instanceof PutMsg) {
+					PutMsg m = (PutMsg) message;
+					this.putReceived(m, getSender());
+				}
 
-			else if (message instanceof ReadAckReqMsg) {
-				ReadAckReqMsg m = (ReadAckReqMsg) message;
-				this.readAckReqReceived(m, getSender());
-			}
+				else if (message instanceof GetMsg) {
+					GetMsg m = (GetMsg) message;
+					this.getReceived(m, getSender());
+				}
 
-			else if (message instanceof WriteAckReqMsg) {
-				WriteAckReqMsg m = (WriteAckReqMsg) message;
-				this.writeAckReqReceived(m, getSender());
-			}
+				else if (message instanceof WriteMsg) {
+					WriteMsg m = (WriteMsg) message;
+					this.writeReceived(m, getSender());
+				}
 
-			else if (message instanceof WriteAckMsg) {
-				if (state == 1) {
-					WriteAckMsg m = (WriteAckMsg) message;
-					if (m.currOperation == curr_operation) {
-						this.confirmPut(m, getSender());
-					} else {
-						//
+				else if (message instanceof ReadAckReqMsg) {
+					ReadAckReqMsg m = (ReadAckReqMsg) message;
+					this.readAckReqReceived(m, getSender());
+				}
+
+				else if (message instanceof WriteAckReqMsg) {
+					WriteAckReqMsg m = (WriteAckReqMsg) message;
+					this.writeAckReqReceived(m, getSender());
+				}
+
+				else if (message instanceof WriteAckMsg) {
+					if (state == 1) {
+						WriteAckMsg m = (WriteAckMsg) message;
+						if (m.currOperation == curr_operation) {
+							this.confirmPut(m, getSender());
+						} else {
+							//
+						}
+					}
+				}
+				
+				else if (message instanceof ReadAckMsg) {
+					if (state == 2) {
+						ReadAckMsg m = (ReadAckMsg) message;
+						if (m.currOperation == curr_operation) {
+							this.confirmGet(m, getSender());
+						} else {
+							//
+						}
+					}
+				}
+				
+				else if (message instanceof WriteFinishedMsg) {
+					if (state == 3) {
+						WriteFinishedMsg m = (WriteFinishedMsg) message;
+						if (m.currOperation == curr_operation) {
+							this.writeFinishedReceived(m, getSender());
+						} else {
+							//
+						}
 					}
 				}
 			}
-			
-			else if (message instanceof ReadAckMsg) {
-				if (state == 2) {
-					ReadAckMsg m = (ReadAckMsg) message;
-					if (m.currOperation == curr_operation) {
-						this.confirmGet(m, getSender());
-					} else {
-						//
-					}
-				}
-			}
-			
-			else if (message instanceof WriteFinishedMsg) {
-				if (state == 3) {
-					WriteFinishedMsg m = (WriteFinishedMsg) message;
-					if (m.currOperation == curr_operation) {
-						this.writeFinishedReceived(m, getSender());
-					} else {
-						//
-					}
-				}
-			}			
 		}
 	}
 }
