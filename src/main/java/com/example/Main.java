@@ -358,7 +358,7 @@ public class Main {
 					N = Integer.parseInt(args[args_max - 4]);
 					if (N < 1) {
 						throw new NumberFormatException();
-					} f = (int) (N / 2);
+					} f = (int) ((N-1) / 2);
 				} catch (NumberFormatException e) {
 					System.out.println("\033[0;31mERROR: First argument (N) incorrect (must be a strictly positive integer).");
 					return;
