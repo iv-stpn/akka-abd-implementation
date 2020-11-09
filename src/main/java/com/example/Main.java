@@ -8,6 +8,9 @@ import akka.actor.ActorSystem;
 import akka.actor.Props;
 import akka.actor.PoisonPill;
 
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -22,9 +25,9 @@ class Members {
 			references.put(ref, true);
 		}
 
-		String s = "[ ";
+		String s = "Processes: [ ";
 		for (ActorRef a : refs) {
-			s += a.path().name() + " ";
+			s += a.path().name() + (a!=refs.get(refs.size()-1) ? ", " : "");
 		}
 		s += " ]";
 		print_string = s;
@@ -264,7 +267,7 @@ class LaunchMsg {
 	}
 
 	public String toString() {
-		return "<Launch(" + M + ", " + i + ">";
+		return "<Launch(" + M + ", " + i + ")>";
 	}
 }
 
@@ -274,10 +277,20 @@ class SystemMsg {
 	public SystemMsg(ActorSystem _system) { 
 		system = _system;
 	}
+	
+	public String toString() {
+		return "<System()>";
+	}	
 }
 
 class CallOfTheVoid {
-	public CallOfTheVoid() { }
+	public CallOfTheVoid() { 
+		
+	}
+	
+	public String toString() {
+		return "<CallOfTheVoid()>";
+	}		
 }
 
 public class Main {
@@ -351,6 +364,17 @@ public class Main {
 					return;
 				}
 			}
+			
+			FileWriter fwriter = null;
+			try {
+				fwriter = new FileWriter("log.js");
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			
+		    PrintWriter output = new PrintWriter(fwriter);
+		    output.print("var history_messages = ");
+		    
 			// Instantiates an actor system
 			final ActorSystem system = ActorSystem.create("system");
 			system.log().info("System started with N=" + N);
@@ -358,20 +382,20 @@ public class Main {
 			ArrayList<ActorRef> references = new ArrayList<>();
 			
 			final ActorRef main = system.actorOf(Props.create(MyActor.class, () -> {
-				return new MyActor(0, N, f, getMethod);
+				return new MyActor(0, N, f, getMethod, output);
 			}), "main");
 			main.tell(new SystemMsg(system), main);
 			
 			for (int i = 0; i < N; i++) {
 				// Instantiates processes
-				final ActorRef a = system.actorOf(MyActor.createActor(i + 1, N, f, getMethod), "" + (i+1));
+				final ActorRef a = system.actorOf(MyActor.createActor(i + 1, N, f, getMethod, output), "" + (i+1));
 				references.add(a);
 			}
 
 			// Gives each process references to all other processes
 			for (ActorRef actor : references) {
-				actor.tell(new Members(references), ActorRef.noSender());
-			} main.tell(new Members(references), ActorRef.noSender());
+				actor.tell(new Members(references), main);
+			} main.tell(new Members(references), main);
 
 			List<Integer> actor_indices = IntStream.rangeClosed(0, N - 1).boxed().collect(Collectors.toList());
 			Collections.shuffle(actor_indices);

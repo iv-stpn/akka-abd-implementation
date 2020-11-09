@@ -8,6 +8,10 @@ import akka.actor.UntypedAbstractActor;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
 
+import java.awt.Desktop;
+import java.io.File;
+import java.io.PrintWriter;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -16,14 +20,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class MyActor extends UntypedAbstractActor {
-	private final LoggingAdapter log = Logging.getLogger(getContext().getSystem(), this); // Logger attached to actor
-	public final ActorRef self;
+	private final LoggingAdapter log = Logging.getLogger(getContext().getSystem(), this); // Logger attached to the actor
+	private final PrintWriter output;
+	private final ActorRef self;
 
 	private final int id;
 	private final int N;
 	private final int f;
 
-	private int start; // TODO
+	private long start;
 
 	private Members processes;
 	private ActorRef main;
@@ -41,15 +46,17 @@ public class MyActor extends UntypedAbstractActor {
 	private ArrayList<WriteFinishedMsg> curr_ack_write = new ArrayList<WriteFinishedMsg>();
 	
 	private int curr_ack_void = 0;
-	private int curr_ack_poison = 0;
 	
 	private ActorSystem system;
 	
-	public MyActor(int _id, int _N, int _f, int _getMethod) {
+	public MyActor(int _id, int _N, int _f, int _getMethod, PrintWriter _output) {
 		id = _id;
 		N = _N;
 		f = _f;
 		self = this.context().self();
+		output = _output;
+		
+		start = System.currentTimeMillis();
 	}
 
 	public String toString() {
@@ -59,9 +66,9 @@ public class MyActor extends UntypedAbstractActor {
 	/**
 	 * Static function creating actor
 	 */
-	public static Props createActor(int id, int N, int f, int getMethod) {
+	public static Props createActor(int id, int N, int f, int getMethod, PrintWriter output) {
 		return Props.create(MyActor.class, () -> {
-			return new MyActor(id, N, f, getMethod);
+			return new MyActor(id, N, f, getMethod, output);
 		});
 	}
 
@@ -71,7 +78,7 @@ public class MyActor extends UntypedAbstractActor {
 	}
 
 	public void log_info(String string) {
-		log.info(string);
+		log.info(self.path().name() + ": " + string);
 	}
 
 	public void putReceived(PutMsg msg, ActorRef sender) {
@@ -98,7 +105,8 @@ public class MyActor extends UntypedAbstractActor {
 		log_info("Acknowledge/put answer received from " + sender.path().name() + ". Received " + msg);
 
 		if (curr_ack_put.size() >= N-f) {
-			log_info("PUT : Got answers from a majority of actors. Continuing put operation.");
+			log_info("PUT : Got answers from a majority of actors. Continuing put operation <" + msg.k + ", "
+					+ msg.v + ", " + (timestamp + 1) + ">.");
 			WriteAckMsg max_ack = Collections.max(curr_ack_put,
 					(a, b) -> ((Integer) a.timestamp).compareTo(b.timestamp));
 
@@ -111,8 +119,8 @@ public class MyActor extends UntypedAbstractActor {
 			}
 
 			if (same_value_for_max_timestamp) {
-				log_info("Got coherent maximum timestamp. Continuing put operation (key: " + msg.k + ", value: "
-						+ msg.v + ", timestamp: " + (timestamp + 1) + ").");				
+				log_info("Got coherent maximum timestamp. Continuing put operation <" + msg.k + ", "
+						+ msg.v + ", " + (timestamp + 1) + ">.");				
 				
 				state = 3;
 				for (ActorRef ref : processes.references.keySet()) {
@@ -141,7 +149,7 @@ public class MyActor extends UntypedAbstractActor {
 	
 	private void readAckReqReceived(ReadAckReqMsg msg, ActorRef sender) {
 		ReadAckMsg m = new ReadAckMsg(msg.k, register.get(msg.k), timestamp, msg.currRead, msg.currIter, msg.M);
-		log_info("Acknowledge/read request received from " + sender.path().name() + " for key " + msg.k + ". Sending "
+		log_info("Acknowledge/get request received from " + sender.path().name() + " for key " + msg.k + ". Sending "
 				+ m + " to " + sender.path().name() + ".");
 		sender.tell(m, self);
 	}
@@ -237,7 +245,7 @@ public class MyActor extends UntypedAbstractActor {
 						self.tell(new GetMsg(msg.k, msg.currIter+1, msg.M), self);
 					}
 				} else {
-					log_info("Give me an honorable death.");
+					log_info("Time to die. Execution time: " + (System.currentTimeMillis()-start) + "ms.");
 					main.tell(new CallOfTheVoid(), self);
 				}
 			}
@@ -250,6 +258,7 @@ public class MyActor extends UntypedAbstractActor {
 	}
 
 	public void onReceive(Object message) throws Throwable {
+		output.println("\"" + getSender().path().name() + ";" + self.path().name() + ";" + message + "\\n\" +");
 		if (id == 0) {
 			if (message instanceof SystemMsg) {
 				system = ((SystemMsg) message).system;
@@ -265,16 +274,18 @@ public class MyActor extends UntypedAbstractActor {
 					log_info("Let the gates of death open.");
 					Thread.sleep(200);
 					for (ActorRef ref : processes.references.keySet()) {
+						output.println("\"" + self.path().name() + ";" + ref.path().name() + ";" + "<PoisonPill()>.\"");
 						ref.tell(PoisonPill.getInstance(), self);
 					} self.tell(PoisonPill.getInstance(), self);
-					system.terminate();
+					output.println("\"" + self.path().name() + ";" + self.path().name() + ";" + "Goodbye Universe.\"");
+					output.close();
 					log_info("Goodbye Universe.");
+					
+					File htmlFile = new File("doc/visualisation.html");
+					Desktop.getDesktop().browse(htmlFile.toURI());
+
+					system.terminate();
 				}
-			} else if (((String) message).equals("Bye World")) {
-				processes.references.replace(getSender(), false);
-			    for(boolean b : processes.references.values()) if(b) return;
-			    
-			    this.finalize();
 			}
 		} else {
 			if (state == -1) {
