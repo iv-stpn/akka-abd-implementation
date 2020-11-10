@@ -20,6 +20,7 @@ import java.util.Map;
 public class MyActor extends UntypedAbstractActor {
 	private final LoggingAdapter log = Logging.getLogger(getContext().getSystem(), this); // Logger attached to the actor
 	private final PrintWriter output;
+	private final PrintWriter output_perfs;
 	private final ActorRef self;
 
 	private final int id;
@@ -27,7 +28,7 @@ public class MyActor extends UntypedAbstractActor {
 	private final int f;
 
 	private long start;
-
+	
 	private Members processes;
 	private ActorRef main;
 
@@ -35,6 +36,9 @@ public class MyActor extends UntypedAbstractActor {
 	private int state = 0;
 
 	private Map<Integer, Integer> register = new HashMap<Integer, Integer>();
+	
+	private Map<ActorRef, Long> processes_times = new HashMap<ActorRef, Long>();
+	
 	private int timestamp = 0;
 	
 	private int getMethod;
@@ -47,13 +51,13 @@ public class MyActor extends UntypedAbstractActor {
 	
 	private ActorSystem system;
 	
-	public MyActor(int _id, int _N, int _f, int _getMethod, PrintWriter _output) {
+	public MyActor(int _id, int _N, int _f, int _getMethod, PrintWriter _output, PrintWriter _output_perfs) {
 		id = _id;
 		N = _N;
 		f = _f;
 		self = this.context().self();
 		output = _output;
-		
+		output_perfs = _output_perfs;
 		start = System.currentTimeMillis();
 	}
 
@@ -64,9 +68,9 @@ public class MyActor extends UntypedAbstractActor {
 	/**
 	 * Static function creating actor
 	 */
-	public static Props createActor(int id, int N, int f, int getMethod, PrintWriter output) {
+	public static Props createActor(int id, int N, int f, int getMethod, PrintWriter output, PrintWriter output_perfs) {
 		return Props.create(MyActor.class, () -> {
-			return new MyActor(id, N, f, getMethod, output);
+			return new MyActor(id, N, f, getMethod, output, output_perfs);
 		});
 	}
 
@@ -225,8 +229,9 @@ public class MyActor extends UntypedAbstractActor {
 					if (msg.currIter < msg.M) {
 						self.tell(new GetMsg(msg.k, msg.currIter + 1, msg.M), self);
 					} else {
-						log_info("Time to die. Execution time: " + (System.currentTimeMillis()-start) + "ms.");
-						main.tell(new CallOfTheVoid(), self);
+						long my_runtime = System.currentTimeMillis()-start;
+						log_info("Time to die. Execution time: " + my_runtime + "ms.");
+						main.tell(new CallOfTheVoid(my_runtime), self);
 					}
 				} else {
 					if (msg.currIter < msg.M) {
@@ -243,8 +248,9 @@ public class MyActor extends UntypedAbstractActor {
 						self.tell(new GetMsg(msg.k, msg.currIter+1, msg.M), self);
 					}
 				} else {
-					log_info("Time to die. Execution time: " + (System.currentTimeMillis()-start) + "ms.");
-					main.tell(new CallOfTheVoid(), self);
+					long my_runtime = System.currentTimeMillis()-start;
+					log_info("Time to die. Execution time: " + my_runtime + "ms.");
+					main.tell(new CallOfTheVoid(my_runtime), self);
 				}
 			}
 		}
@@ -265,11 +271,20 @@ public class MyActor extends UntypedAbstractActor {
 				Members m = (Members) message;
 				processes = m;
 				log_info("Received other processes' info.");
+				if (id == 0) {
+					for (ActorRef ref : processes.references.keySet()) {
+						processes_times.put(ref, (long) 0);
+					}
+				}
 				
 			} else if (message instanceof CallOfTheVoid && curr_ack_void < N-f) {
+				processes_times.replace(getSender(), ((CallOfTheVoid) message).runtime);
 				curr_ack_void++;
+				
 				if (curr_ack_void >= N-f) {
 					log_info("Sending Poison Pills.");
+					long my_runtime = System.currentTimeMillis()-start;
+					
 					for (ActorRef ref : processes.references.keySet()) {
 						output.println("\"" + self.path().name() + ";" + ref.path().name() + ";" + "<PoisonPill()>.\"");
 						ref.tell(PoisonPill.getInstance(), self);
@@ -278,7 +293,21 @@ public class MyActor extends UntypedAbstractActor {
 					output.close();
 					log_info("Goodbye Universe.");
 					
-					log_info("Total System Runtime: " + (System.currentTimeMillis()-start) + "ms.");
+					
+					log_info("Total System Runtime: " + my_runtime + "ms.");
+					
+					log_info("Time performances:");
+					output_perfs.println("Time performances:\n");
+					for (Map.Entry<ActorRef, Long> entry : processes_times.entrySet()) {
+						if (entry.getValue() == 0) {
+							log_info(entry.getKey().path().name() + ": faulty <=> system runtime (" + my_runtime + "ms)");
+							output_perfs.println(entry.getKey().path().name() + ": faulty <=> system runtime (" + my_runtime + "ms)");
+						} else {
+							log_info(entry.getKey().path().name() + ": " + entry.getValue() + "ms");
+							output_perfs.println(entry.getKey().path().name() + ": " + entry.getValue() + "ms");
+						}
+					}
+					output_perfs.close();
 					
 					File htmlFile = new File("doc/visualisation.html");
 					Desktop.getDesktop().browse(htmlFile.toURI());

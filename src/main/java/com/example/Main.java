@@ -279,8 +279,10 @@ class SystemMsg {
 }
 
 class CallOfTheVoid {
-	public CallOfTheVoid() { 
-		
+	public long runtime;
+	
+	public CallOfTheVoid(long _runtime) { 
+		runtime = _runtime;
 	}
 	
 	public String toString() {
@@ -296,6 +298,8 @@ public class Main {
 	public static int M = 3;
 	
 	public static boolean launchGet = true;
+	public static boolean use_console_logs = true;
+
 	public static int getMethod = 0;
 	
 	public static Map<ActorRef, Boolean> alive = new HashMap<ActorRef, Boolean>();
@@ -311,14 +315,25 @@ public class Main {
 		authorized_false.add("false");
 		authorized_false.add("0");
 
-		int args_max = 4;
+		int args_max = 5;
 		if (args.length > args_max) {
 			System.out.println("\033[0;31mERROR: Illegal number of arguments (" + args_max + " max).");
 		} else {
 
 			if (args.length == args_max) {
+				if (authorized_true.contains((args[args_max - 1].toLowerCase()))) {
+					use_console_logs = true;
+				} else if (authorized_false.contains((args[args_max - 1].toLowerCase()))) {
+					use_console_logs = false;
+				} else {
+					System.out.println(
+							"\033[0;31mERROR: Fifth argument (use_console_logs) incorrect (must be y/n, true/false or 1/0).");
+					return;
+				}
+			}
+			if (args.length >= args_max - 1) {
 				try {
-					getMethod = Integer.parseInt(args[args_max - 1]);
+					getMethod = Integer.parseInt(args[args_max - 2]);
 					if (getMethod != 0 && getMethod != 1) {
 						throw new NumberFormatException();
 					}					
@@ -327,10 +342,10 @@ public class Main {
 					return;
 				}
 			}
-			if (args.length >= args_max - 1) {
-				if (authorized_true.contains((args[args_max - 2].toLowerCase()))) {
+			if (args.length >= args_max - 2) {
+				if (authorized_true.contains((args[args_max - 3].toLowerCase()))) {
 					launchGet = true;
-				} else if (authorized_false.contains((args[args_max - 2].toLowerCase()))) {
+				} else if (authorized_false.contains((args[args_max - 3].toLowerCase()))) {
 					launchGet = false;
 				} else {
 					System.out.println(
@@ -338,9 +353,9 @@ public class Main {
 					return;
 				}
 			}
-			if (args.length >= args_max - 2) {
+			if (args.length >= args_max - 3) {
 				try {
-					M = Integer.parseInt(args[args_max - 3]);
+					M = Integer.parseInt(args[args_max - 4]);
 					if (M < 1) {
 						throw new NumberFormatException();
 					}
@@ -348,9 +363,9 @@ public class Main {
 					System.out.println("\033[0;31mERROR: Second argument (M) incorrect (must be a strictly positive integer).");
 					return;
 				}
-			} if (args.length >= args_max - 3) {
+			} if (args.length >= args_max - 4) {
 				try {
-					N = Integer.parseInt(args[args_max - 4]);
+					N = Integer.parseInt(args[args_max - 6]);
 					if (N < 1) {
 						throw new NumberFormatException();
 					} f = (int) ((N-1) / 2);
@@ -370,6 +385,15 @@ public class Main {
 		    PrintWriter output = new PrintWriter(fwriter);
 		    output.print("var history_messages = ");
 		    
+			FileWriter fwriter_perfs = null;
+			try {
+				fwriter_perfs = new FileWriter("perfs.js");
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			
+		    PrintWriter output_perfs = new PrintWriter(fwriter_perfs);
+		    
 			// Instantiates an actor system
 			final ActorSystem system = ActorSystem.create("system");
 			system.log().info("System started with N=" + N);
@@ -377,13 +401,13 @@ public class Main {
 			ArrayList<ActorRef> references = new ArrayList<>();
 			
 			final ActorRef main = system.actorOf(Props.create(MyActor.class, () -> {
-				return new MyActor(0, N, f, getMethod, output);
+				return new MyActor(0, N, f, getMethod, output, output_perfs);
 			}), "main");
 			main.tell(new SystemMsg(system), main);
 			
 			for (int i = 0; i < N; i++) {
 				// Instantiates processes
-				final ActorRef a = system.actorOf(MyActor.createActor(i + 1, N, f, getMethod, output), "" + (i+1));
+				final ActorRef a = system.actorOf(MyActor.createActor(i + 1, N, f, getMethod, output, output_perfs), "" + (i+1));
 				references.add(a);
 			}
 

@@ -1,16 +1,18 @@
 To launch the program, you can:
 
-(all command-line arguments are optional; the default values are N=3, M=3, launchGet=true, getMethod=0)
-
 1. Open the folder as a project in an IDE and compile & run (doesn't allow for command-line arguments).
 You can hardcode your desired values for the system in the attributes of the Main class.
 
 2. Launch the generated JAR from the master directory (doesn't automatically open the browser in some cases!) with:
 
-java -jar "target/akka-project-1.0-with-dependencies.jar" <N> <M> <launchGet> <getMethod>
+java -jar "target/akka-project-1.0-with-dependencies.jar" <N> <M> <launchGet> <getMethod> <use_console_logs>
 
 To see the message sequence chart, got to target > doc from the master directory, and open "visualisation.html"
 
 3. Launch Main.java via command-line in the master directory with:
 
-javac -cp <path_to_dependencies> "src/main/com/example/*.java"; java "src/main/com/example/Main" <N> <M> <launchGet> <getMethod>
+javac -cp <path_to_dependencies> "src/main/com/example/*.java"; java "src/main/com/example/Main" <N> <M> <launchGet> <getMethod> <use_console_logs>
+
+
+
+(all command-line arguments are optional; the default values are N=3, M=3, launchGet=true, getMethod=0)
