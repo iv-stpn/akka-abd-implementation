@@ -11,13 +11,11 @@ import akka.event.LoggingAdapter;
 import java.awt.Desktop;
 import java.io.File;
 import java.io.PrintWriter;
-import java.net.URI;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class MyActor extends UntypedAbstractActor {
 	private final LoggingAdapter log = Logging.getLogger(getContext().getSystem(), this); // Logger attached to the actor
@@ -227,7 +225,7 @@ public class MyActor extends UntypedAbstractActor {
 					if (msg.currIter < msg.M) {
 						self.tell(new GetMsg(msg.k, msg.currIter + 1, msg.M), self);
 					} else {
-						log_info("Give me an honorable death.");
+						log_info("Time to die. Execution time: " + (System.currentTimeMillis()-start) + "ms.");
 						main.tell(new CallOfTheVoid(), self);
 					}
 				} else {
@@ -271,8 +269,7 @@ public class MyActor extends UntypedAbstractActor {
 			} else if (message instanceof CallOfTheVoid && curr_ack_void < N-f) {
 				curr_ack_void++;
 				if (curr_ack_void >= N-f) {
-					log_info("Let the gates of death open.");
-					Thread.sleep(200);
+					log_info("Sending Poison Pills.");
 					for (ActorRef ref : processes.references.keySet()) {
 						output.println("\"" + self.path().name() + ";" + ref.path().name() + ";" + "<PoisonPill()>.\"");
 						ref.tell(PoisonPill.getInstance(), self);
@@ -281,9 +278,12 @@ public class MyActor extends UntypedAbstractActor {
 					output.close();
 					log_info("Goodbye Universe.");
 					
+					log_info("Total System Runtime: " + (System.currentTimeMillis()-start) + "ms.");
+					
 					File htmlFile = new File("doc/visualisation.html");
 					Desktop.getDesktop().browse(htmlFile.toURI());
-
+					
+					Thread.sleep(100);
 					system.terminate();
 				}
 			}

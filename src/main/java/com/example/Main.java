@@ -1,12 +1,8 @@
 package com.example;
 
-import akka.actor.Actor;
-import akka.actor.UntypedAbstractActor;
-import akka.actor.ActorPath;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.actor.Props;
-import akka.actor.PoisonPill;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -14,7 +10,6 @@ import java.io.PrintWriter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 class Members {
 	public final String print_string;
