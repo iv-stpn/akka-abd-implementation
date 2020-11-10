@@ -1,5 +1,5 @@
 Time performances:
 
-2: 27ms
-1: faulty <=> system runtime (32ms)
-3: 27ms
+2: faulty <=> system runtime (18ms)
+1: 17ms
+3: 12ms

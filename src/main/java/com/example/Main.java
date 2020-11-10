@@ -298,7 +298,7 @@ public class Main {
 	public static int M = 3;
 	
 	public static boolean launchGet = true;
-	public static boolean use_console_logs = true;
+	public static boolean use_console_logs = false;
 
 	public static int getMethod = 0;
 	
@@ -401,13 +401,13 @@ public class Main {
 			ArrayList<ActorRef> references = new ArrayList<>();
 			
 			final ActorRef main = system.actorOf(Props.create(MyActor.class, () -> {
-				return new MyActor(0, N, f, getMethod, output, output_perfs);
+				return new MyActor(0, N, f, getMethod, use_console_logs, output, output_perfs);
 			}), "main");
 			main.tell(new SystemMsg(system), main);
 			
 			for (int i = 0; i < N; i++) {
 				// Instantiates processes
-				final ActorRef a = system.actorOf(MyActor.createActor(i + 1, N, f, getMethod, output, output_perfs), "" + (i+1));
+				final ActorRef a = system.actorOf(MyActor.createActor(i + 1, N, f, getMethod, use_console_logs, output, output_perfs), "" + (i+1));
 				references.add(a);
 			}
 

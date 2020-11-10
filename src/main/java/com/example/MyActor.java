@@ -42,6 +42,7 @@ public class MyActor extends UntypedAbstractActor {
 	private int timestamp = 0;
 	
 	private int getMethod;
+	private boolean log_console;
 	
 	private ArrayList<WriteAckMsg> curr_ack_put = new ArrayList<WriteAckMsg>();
 	private ArrayList<ReadAckMsg> curr_ack_get = new ArrayList<ReadAckMsg>();
@@ -51,10 +52,12 @@ public class MyActor extends UntypedAbstractActor {
 	
 	private ActorSystem system;
 	
-	public MyActor(int _id, int _N, int _f, int _getMethod, PrintWriter _output, PrintWriter _output_perfs) {
+	public MyActor(int _id, int _N, int _f, int _getMethod, boolean _log_console, PrintWriter _output, PrintWriter _output_perfs) {
 		id = _id;
 		N = _N;
 		f = _f;
+		getMethod = _getMethod;
+		log_console = _log_console;
 		self = this.context().self();
 		output = _output;
 		output_perfs = _output_perfs;
@@ -68,9 +71,9 @@ public class MyActor extends UntypedAbstractActor {
 	/**
 	 * Static function creating actor
 	 */
-	public static Props createActor(int id, int N, int f, int getMethod, PrintWriter output, PrintWriter output_perfs) {
+	public static Props createActor(int id, int N, int f, int getMethod, boolean log_console, PrintWriter output, PrintWriter output_perfs) {
 		return Props.create(MyActor.class, () -> {
-			return new MyActor(id, N, f, getMethod, output, output_perfs);
+			return new MyActor(id, N, f, getMethod, log_console, output, output_perfs);
 		});
 	}
 
@@ -80,7 +83,9 @@ public class MyActor extends UntypedAbstractActor {
 	}
 
 	public void log_info(String string) {
-		log.info(self.path().name() + ": " + string);
+		if (log_console) {
+			log.info(self.path().name() + ": " + string);
+		}
 	}
 
 	public void putReceived(PutMsg msg, ActorRef sender) {
@@ -294,16 +299,16 @@ public class MyActor extends UntypedAbstractActor {
 					log_info("Goodbye Universe.");
 					
 					
-					log_info("Total System Runtime: " + my_runtime + "ms.");
+					log.info("Total System Runtime: " + my_runtime + "ms.");
 					
-					log_info("Time performances:");
+					log.info("Time performances:");
 					output_perfs.println("Time performances:\n");
 					for (Map.Entry<ActorRef, Long> entry : processes_times.entrySet()) {
 						if (entry.getValue() == 0) {
-							log_info(entry.getKey().path().name() + ": faulty <=> system runtime (" + my_runtime + "ms)");
+							log.info(entry.getKey().path().name() + ": faulty <=> system runtime (" + my_runtime + "ms)");
 							output_perfs.println(entry.getKey().path().name() + ": faulty <=> system runtime (" + my_runtime + "ms)");
 						} else {
-							log_info(entry.getKey().path().name() + ": " + entry.getValue() + "ms");
+							log.info(entry.getKey().path().name() + ": " + entry.getValue() + "ms");
 							output_perfs.println(entry.getKey().path().name() + ": " + entry.getValue() + "ms");
 						}
 					}
