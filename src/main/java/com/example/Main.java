@@ -242,7 +242,7 @@ class WriteFinishedMsg {
 	}
 
 	public String toString() {
-		return "<WriteFinished()>";
+		return "<WriteFinished(" + currOperation + ")>";
 	}
 }
 
@@ -295,10 +295,10 @@ public class Main {
 	public static int N = 3;
 	public static int f = 1;
 	
-	public static int M = 3;
+	public static int M = 20;
 	
 	public static boolean launchGet = true;
-	public static boolean use_console_logs = false;
+	public static boolean use_console_logs = true;
 
 	public static int getMethod = 0;
 	
@@ -365,7 +365,7 @@ public class Main {
 				}
 			} if (args.length >= args_max - 4) {
 				try {
-					N = Integer.parseInt(args[args_max - 6]);
+					N = Integer.parseInt(args[args_max - 5]);
 					if (N < 1) {
 						throw new NumberFormatException();
 					} f = (int) ((N-1) / 2);

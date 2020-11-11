@@ -5,8 +5,8 @@
   <meta charset="utf-8" />
   <title>Akka NWNR Atomic Register Visualisation (EFREI M1 Project 2020-2021)</title>
      <!--  <script src="d3.v3.min.js" charset="utf-8"></script> -->
-  <script src="https://d3js.org/d3.v5.min.js" charset="utf-8"></script>
-  <script src="../d3-msg-seq.js"></script>
+  <script src="d3.v5.min.js" charset="utf-8"></script>
+  <script src="d3-msg-seq.js"></script>
   <script src="../log.js"></script>
   <script src="../log_console.js"></script>
 
@@ -89,7 +89,7 @@
   <script>
     var msg_seq = d3.messageSequence().fade(0);
 
-    document.getElementById("console_output").innerHTML = history_console;
+    document.getElementById("console_output").innerHTML = (history_console.length > 20000 ? history_console.slice(0, 10000) + "<br>...<br>" + history_console.slice(-10000) : history_console);
     d3.select('#container')
       .append("svg")
       .attr("width", "100%")
@@ -102,11 +102,11 @@
         msg_seq.addMessage(msg);
         setTimeout(function() {
           delay_add(messages)
-        }, 500);
+      }, 300);
       }
     }
 
-    var lines = history_messages.split("\n");
+    var lines = history_messages.split("\n").slice(0,10000);
     var all_messages = [];
     for (var line in lines) {
       var elems = lines[line].split(";");
@@ -117,103 +117,6 @@
       });
     }
     delay_add(all_messages);
-
-    /*delay_add([{
-        from: "customer",
-        to: "barrista1",
-        msg: "place order"
-      },
-      {
-        from: "barrista1",
-        to: "register",
-        msg: "enter order"
-      },
-      {
-        from: "register",
-        to: "barrista1",
-        msg: "give total"
-      },
-      {
-        from: "barrista1",
-        to: "barrista1",
-        msg: "get cup"
-      },
-      {
-        from: "barrista1",
-        to: "barrista2",
-        msg: "give cup"
-      },
-      {
-        from: "barrista1",
-        to: "customer",
-        msg: "request money"
-      },
-      {
-        from: "customer",
-        to: "barrista1",
-        msg: "pay order"
-      },
-      {
-        from: "barrista2",
-        to: "barrista2",
-        msg: "get chai mix"
-      },
-      {
-        from: "barrista2",
-        to: "barrista2",
-        msg: "add flavor"
-      },
-      {
-        from: "barrista2",
-        to: "barrista2",
-        msg: "add milk"
-      },
-      {
-        from: "barrista2",
-        to: "barrista2",
-        msg: "add ice"
-      },
-      {
-        from: "barrista2",
-        to: "barrista2",
-        msg: "swirl"
-      },
-      {
-        from: "barrista2",
-        to: "customer",
-        msg: "give tasty beverage"
-      },
-      {
-        from: "customer",
-        to: "tasty beverage",
-        msg: "sip"
-      },
-      {
-        from: "tasty beverage",
-        to: "customer",
-        msg: "burn"
-      },
-      {
-        from: "customer",
-        to: "customer",
-        msg: "cry"
-      },
-      {
-        from: "customer",
-        to: "manager",
-        msg: "complain"
-      },
-      {
-        from: "manager",
-        to: "barrista1",
-        msg: "fire"
-      },
-      {
-        from: "manager",
-        to: "barrista2",
-        msg: "fire"
-      },
-    ])*/
   </script>
 </body>
 

@@ -136,7 +136,7 @@ public class MyActor extends UntypedAbstractActor {
 				}
 
 			} else {
-				log_info("Got incoherent timestamp. Cancelling put operation.");
+				log_info("[ERROR] Got incoherent timestamp. Cancelling put operation.");
 			}
 
 			curr_ack_put.clear();
@@ -183,13 +183,13 @@ public class MyActor extends UntypedAbstractActor {
 				
 				state = 3;
 				for (ActorRef ref : processes.references.keySet()) {
-					ref.tell(new WriteMsg(msg.k, msg.v, timestamp, true, curr_operation, true, msg.currIter, msg.M), self);
+					ref.tell(new WriteMsg(msg.k, max_ack.v, timestamp, true, curr_operation, true, msg.currIter, msg.M), self);
 				}
 				
 				log_info("Get operation complete. Returning <k, v, t : (" + msg.k + ", " + max_ack.v + ", "
 						+ max_ack.timestamp + ")>.");
 			} else {
-				log_info("Got incoherent timestamp. Cancelling get operation.");
+				log_info("[ERROR] Got incoherent timestamp. Cancelling get operation.");
 			}
 			
 			curr_ack_get.clear();
@@ -223,10 +223,10 @@ public class MyActor extends UntypedAbstractActor {
 			curr_ack_write.clear();
 
 			if (msg.readOrigin) {
-				log_info("Get operation complete. Returning <k, v, t : (" + msg.k + ", " + msg.v + ", "
+				log_info("Get operation (Operation: " + curr_operation + ") complete. Returning <k, v, t : (" + msg.k + ", " + msg.v + ", "
 						+ msg.timestamp + ")>.");
 			} else {
-				log_info("Put operation complete with (k = " + msg.k + ", v = " + msg.v + "); new timestamp: " + msg.timestamp + ".");
+				log_info("Put operation (Operation: " + curr_operation + ") complete with (k = " + msg.k + ", v = " + msg.v + "); new timestamp: " + msg.timestamp + ".");
 			}
 			
 			if (getMethod == 1) {
@@ -267,6 +267,7 @@ public class MyActor extends UntypedAbstractActor {
 	}
 
 	public void onReceive(Object message) throws Throwable {
+		//log.info("" + self.path().name() + " (curr_state: " + state + "): " + message);
 		output.println("\"" + getSender().path().name() + ";" + self.path().name() + ";" + message + "\\n\" +");
 		if (id == 0) {
 			if (message instanceof SystemMsg) {
@@ -302,14 +303,14 @@ public class MyActor extends UntypedAbstractActor {
 					log.info("Total System Runtime: " + my_runtime + "ms.");
 					
 					log.info("Time performances:");
-					output_perfs.println("Time performances:\n");
+					output_perfs.println("var history_perfs = \"Time performances:<br>\"");
 					for (Map.Entry<ActorRef, Long> entry : processes_times.entrySet()) {
 						if (entry.getValue() == 0) {
 							log.info(entry.getKey().path().name() + ": faulty <=> system runtime (" + my_runtime + "ms)");
-							output_perfs.println(entry.getKey().path().name() + ": faulty <=> system runtime (" + my_runtime + "ms)");
+							output_perfs.println("+ \"" + entry.getKey().path().name() + ": faulty <=> system runtime (" + my_runtime + "ms)\"");
 						} else {
 							log.info(entry.getKey().path().name() + ": " + entry.getValue() + "ms");
-							output_perfs.println(entry.getKey().path().name() + ": " + entry.getValue() + "ms");
+							output_perfs.println("+ \"" + entry.getKey().path().name() + ": " + entry.getValue() + "ms\"");
 						}
 					}
 					output_perfs.close();
@@ -341,12 +342,12 @@ public class MyActor extends UntypedAbstractActor {
 					LaunchMsg m = (LaunchMsg) message;
 					this.launch(m);
 					
-				} else if (message instanceof PutMsg) {
+				} else if (message instanceof PutMsg && state == 0) {
 					PutMsg m = (PutMsg) message;
 					this.putReceived(m, getSender());
 				}
 
-				else if (message instanceof GetMsg) {
+				else if (message instanceof GetMsg && state == 0) {
 					GetMsg m = (GetMsg) message;
 					this.getReceived(m, getSender());
 				}

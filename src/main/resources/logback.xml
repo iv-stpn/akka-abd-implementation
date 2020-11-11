@@ -22,14 +22,21 @@
 
 	<appender name="ASYNC"
 		class="ch.qos.logback.classic.AsyncAppender">
-		<queueSize>1024</queueSize>
+		<queueSize>10000</queueSize>
 		<neverBlock>true</neverBlock>
 		<appender-ref ref="STDOUT" />
 	</appender>
-
-	<root level="INFO">
+	
+	<appender name="FILE_ASYNC"
+		class="ch.qos.logback.classic.AsyncAppender">
+		<queueSize>10000</queueSize>
+		<neverBlock>true</neverBlock>
 		<appender-ref ref="FILE" />
+	</appender>
+	
+	<root level="INFO">
 		<appender-ref ref="ASYNC" />
+		<appender-ref ref="FILE_ASYNC" />
 	</root>
 
 </configuration>
