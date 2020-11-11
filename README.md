@@ -37,12 +37,12 @@ To interact with the key-value store, we will use two "root" methods symbolising
 
 ### III - Performance Analysis
 
-- **. Pseudo-code used**
-- **. Pseudo-code used**
+- **A. The Controller Actor & Calculating Runtime**
+- **B. Performance Analysis**
 
 ### IV - Details Regarding The Implementation & Visualisation Of The Message Sequence
 
-# I- Our Akka Implementation
+# I - Our Akka Implementation
 
 ## A - Pseudo-code used
 
