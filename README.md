@@ -275,7 +275,7 @@ After that, the final `Write` in both operations is exactly the same (just with 
 </appender>
 ```
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;By limiting the queue of messages that can be written to 1024 (the asynchronous default), the application might freeze when the queue of messages gets too large. By changing the value to 100 000, we were able to greatly reduce the number of application freezes. However, we noticed that even when we weren't using any kind of logging, crashes would still happen from time to time, the the issue isn't completely solved, though it is very strange and unexpected.
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;By limiting the queue of messages that can be written to 1024 (the asynchronous default), the application might freeze when the queue of messages gets too large. By changing the value to 100 000, we were able to greatly reduce the number of application freezes. However, we noticed that even when we weren't using any kind of logging, crashes would still happen from time to time. The issue isn't completely solved and it is still very strange and unexpected.
 
 ## C. Proof of atomicity
 
