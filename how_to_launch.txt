@@ -1,7 +1,8 @@
 To launch the program, you can:
 
 1. Open the folder as a project in an IDE and compile & run (doesn't allow for command-line arguments).
-You can hardcode your desired values for the system in the attributes of the Main class.
+The Main and MyActor classes can be found in "src/main/com/example/".
+You can hardcode your desired parameters for the system in the attributes of the Main class.
 
 2. Launch the generated JAR from the master directory (doesn't automatically open the browser in some cases!) with:
 

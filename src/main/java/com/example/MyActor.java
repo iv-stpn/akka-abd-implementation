@@ -11,7 +11,9 @@ import akka.event.LoggingAdapter;
 import java.awt.Desktop;
 import java.io.File;
 import java.io.PrintWriter;
-
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -236,7 +238,7 @@ public class MyActor extends UntypedAbstractActor {
 					} else {
 						long my_runtime = System.currentTimeMillis()-start;
 						log_info("Time to die. Execution time: " + my_runtime + "ms.");
-						main.tell(new CallOfTheVoid(my_runtime), self);
+						main.tell(new CallOfTheVoid(my_runtime, msg.M), self);
 					}
 				} else {
 					if (msg.currIter < msg.M) {
@@ -255,7 +257,7 @@ public class MyActor extends UntypedAbstractActor {
 				} else {
 					long my_runtime = System.currentTimeMillis()-start;
 					log_info("Time to die. Execution time: " + my_runtime + "ms.");
-					main.tell(new CallOfTheVoid(my_runtime), self);
+					main.tell(new CallOfTheVoid(my_runtime, msg.M), self);
 				}
 			}
 		}
@@ -284,7 +286,8 @@ public class MyActor extends UntypedAbstractActor {
 				}
 				
 			} else if (message instanceof CallOfTheVoid && curr_ack_void < N-f) {
-				processes_times.replace(getSender(), ((CallOfTheVoid) message).runtime);
+				CallOfTheVoid msg = ((CallOfTheVoid) message);
+				processes_times.replace(getSender(), msg.runtime);
 				curr_ack_void++;
 				
 				if (curr_ack_void >= N-f) {
@@ -300,25 +303,30 @@ public class MyActor extends UntypedAbstractActor {
 					log_info("Goodbye Universe.");
 					
 					
-					log.info("Total System Runtime: " + my_runtime + "ms.");
 					
-					log.info("Time performances:");
-					output_perfs.println("var history_perfs = \"Time performances:<br>\"");
+					String perf_title = "Time performances (for N=" + N + ", M=" + msg.M/(getMethod == 0 ? 2 : 1) + ", " + (log_console ? "with logs" : "without logs") + "):";
+					log.info(perf_title + "\n");
+					log.info("Total System Runtime: " + my_runtime + "ms.");
+					output_perfs.println("var history_perfs = \"" + perf_title + "<br><br>\"");
 					for (Map.Entry<ActorRef, Long> entry : processes_times.entrySet()) {
 						if (entry.getValue() == 0) {
 							log.info(entry.getKey().path().name() + ": faulty <=> system runtime (" + my_runtime + "ms)");
-							output_perfs.println("+ \"" + entry.getKey().path().name() + ": faulty <=> system runtime (" + my_runtime + "ms)\"");
+							output_perfs.println("+ \"" + entry.getKey().path().name() + ": faulty <=> system runtime (" + my_runtime + "ms)<br>\"");
 						} else {
 							log.info(entry.getKey().path().name() + ": " + entry.getValue() + "ms");
-							output_perfs.println("+ \"" + entry.getKey().path().name() + ": " + entry.getValue() + "ms\"");
+							output_perfs.println("+ \"" + entry.getKey().path().name() + ": " + entry.getValue() + "ms<br>\"");
 						}
 					}
 					output_perfs.close();
 					
+					/*if (!log_console) {
+			            Files.copy(new File("perfs.js").toPath(), new File("log_console.js").toPath(),StandardCopyOption.REPLACE_EXISTING);
+					}*/
+					
 					File htmlFile = new File("doc/visualisation.html");
 					Desktop.getDesktop().browse(htmlFile.toURI());
 					
-					Thread.sleep(100);
+					Thread.sleep(600);
 					system.terminate();
 				}
 			}

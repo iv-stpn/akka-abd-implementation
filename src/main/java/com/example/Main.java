@@ -280,9 +280,11 @@ class SystemMsg {
 
 class CallOfTheVoid {
 	public long runtime;
+	public int M;
 	
-	public CallOfTheVoid(long _runtime) { 
+	public CallOfTheVoid(long _runtime, int _M) { 
 		runtime = _runtime;
+		M = _M;
 	}
 	
 	public String toString() {
@@ -292,10 +294,10 @@ class CallOfTheVoid {
 
 public class Main {
 
-	public static int N = 3;
-	public static int f = 1;
+	public static int N = 10;
+	public static int f = 4;
 	
-	public static int M = 20;
+	public static int M = 3;
 	
 	public static boolean launchGet = true;
 	public static boolean use_console_logs = true;
@@ -396,7 +398,7 @@ public class Main {
 		    
 			// Instantiates an actor system
 			final ActorSystem system = ActorSystem.create("system");
-			system.log().info("System started with N=" + N);
+			system.log().info("System started with N=" + N + "\n");
 
 			ArrayList<ActorRef> references = new ArrayList<>();
 			

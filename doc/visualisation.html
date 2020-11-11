@@ -2,122 +2,125 @@
 <html>
 
 <head>
-  <meta charset="utf-8" />
-  <title>Akka NWNR Atomic Register Visualisation (EFREI M1 Project 2020-2021)</title>
-     <!--  <script src="d3.v3.min.js" charset="utf-8"></script> -->
-  <script src="d3.v5.min.js" charset="utf-8"></script>
-  <script src="d3-msg-seq.js"></script>
-  <script src="../log.js"></script>
-  <script src="../log_console.js"></script>
+    <meta charset="utf-8" />
+    <title>Akka NWNR Atomic Register Visualisation (EFREI M1 Project 2020-2021)</title>
+    <!--  <script src="d3.v3.min.js" charset="utf-8"></script> -->
+    <script src="d3.v5.min.js" charset="utf-8"></script>
+    <script src="d3-msg-seq.js"></script>
+    <script src="../log.js"></script>
+    <script src="../log_console.js"></script>
+    <script src="../perfs.js"></script>
 
-  <style>
-    code {
-      font-size: 15px;
-    }
+    <style>
+        code {
+            font-size: 15px;
+        }
 
-    .column {
-      padding: 5px;
-    }
+        .column {
+            padding: 5px;
+        }
 
-    .left {
-      width: 45%;
-    }
+        .left {
+            width: 35%;
+        }
 
-    .right {
-      width: 55%;
-    }
+        .right {
+            width: 65%;
+        }
 
-    .row {
-      display: flex;
-    }
+        .row {
+            display: flex;
+        }
 
-    /* Clear floats after the columns */
-    .row:after {
-      content: "";
-      display: table;
-      clear: both;
-    }
+        /* Clear floats after the columns */
+        .row:after {
+            content: "";
+            display: table;
+            clear: both;
+        }
 
-    #container {
-      top: 50px;
-    }
+        #container {
+            top: 50px;
+        }
 
-    text {
-      font-family: sans-serif;
-    }
+        text {
+            font-family: sans-serif;
+        }
 
-    g.actor line {
-      stroke: lightgray;
-      stroke-width: 1px;
-    }
+        g.actor line {
+            stroke: lightgray;
+            stroke-width: 1px;
+        }
 
-    g.message text {
-      font-family: monospace;
-    }
+        g.message text {
+            font-family: monospace;
+        }
 
-    g.message line {
-      stroke: black;
-      stroke-width: 2px;
-    }
+        g.message line {
+            stroke: black;
+            stroke-width: 2px;
+        }
 
-    g.message path {
-      stroke: black;
-      stroke-width: 2px;
-    }
+        g.message path {
+            stroke: black;
+            stroke-width: 2px;
+        }
 
-    h2 {
-      text-align: center;
-    }
-  </style>
+        h2 {
+            text-align: center;
+        }
+    </style>
 </head>
 
 <body>
-  <div class="row">
-    <div class="column left" style="background-color:#aaa;">
-      <h2>Console Output</h2>
-      <p>
-        <code id="console_output">
-        </code>
-      </p>
+    <div class="row">
+        <div class="column left" style="background-color:#aaa;">
+            <h2>Console Output</h2>
+            <p>
+                <code id="console_output">
+                </code>
+            </p>
+        </div>
+
+        <div class="column right" id="container" style="background-color:#bbb;">
+            <h2>Message Sequence Chart</h2>
+        </div>
     </div>
 
-    <div class="column right" id="container" style="background-color:#bbb;">
-      <h2>Message Sequence Chart</h2>
-    </div>
-  </div>
+    <script>
+        var msg_seq = d3.messageSequence().fade(0);
 
-  <script>
-    var msg_seq = d3.messageSequence().fade(0);
+        document.getElementById("console_output").innerHTML = ((typeof myVar !== 'undefined') ?
+            (history_console.length > 20000 ? history_console.slice(0, 10000) + "<br>...<br>" + history_console.slice(-10000) : history_console) :
+            history_perfs);
+        d3.select('#container')
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", "300px")
+            .call(msg_seq)
 
-    document.getElementById("console_output").innerHTML = (history_console.length > 20000 ? history_console.slice(0, 10000) + "<br>...<br>" + history_console.slice(-10000) : history_console);
-    d3.select('#container')
-      .append("svg")
-      .attr("width", "100%")
-      .attr("height", "300px")
-      .call(msg_seq)
+        function delay_add(messages) {
+            var msg = messages.shift();
+            if (msg) {
+                msg_seq.addMessage(msg);
+                setTimeout(function() {
+                    delay_add(messages)
+                }, 300);
+            }
+        }
 
-    function delay_add(messages) {
-      var msg = messages.shift();
-      if (msg) {
-        msg_seq.addMessage(msg);
-        setTimeout(function() {
-          delay_add(messages)
-      }, 300);
-      }
-    }
-
-    var lines = history_messages.split("\n").slice(0,10000);
-    var all_messages = [];
-    for (var line in lines) {
-      var elems = lines[line].split(";");
-      all_messages.push({
-        from: elems[0],
-        to: elems[1],
-        msg: elems[2]
-      });
-    }
-    delay_add(all_messages);
-  </script>
+        var lines = history_messages.split("\n").slice(0, 10000);
+        var all_messages = [];
+        for (var line in lines) {
+            var elems = lines[line].split(";");
+            all_messages.push({
+                from: elems[0],
+                to: elems[1],
+                msg: elems[2]
+            });
+        }
+        delay_add(all_messages);
+    </script>
 </body>
 
 </html>

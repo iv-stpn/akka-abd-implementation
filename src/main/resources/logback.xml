@@ -15,7 +15,7 @@
 		<encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
 			<layout class="ch.qos.logback.classic.PatternLayout">
 				<fileHeader>var history_console = ""</fileHeader>
-				<pattern>+ "%msg&lt;br&gt;" %n</pattern>
+				<pattern>+ "%%replace{%msg}{\n}{&lt;br&gt;}&lt;br&gt;" %n</pattern>
 			</layout>
 		</encoder>
 	</appender>
