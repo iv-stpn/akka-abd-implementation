@@ -24,7 +24,7 @@ To interact with the key-value store, we will use two "root" methods symbolising
 # Summary
 
 ### I - Our Akka Implementation
-- **A. Pseudo-code used**
+- **A. Pseudo-code derived from ABD for an Actor Model implementation**
 - **B. Initializing the processes**
 - **C. Implementation of the put(k,v) method**
 - **D. Implementation of the get(k) method**
@@ -44,10 +44,9 @@ To interact with the key-value store, we will use two "root" methods symbolising
 
 # I - Our Akka Implementation
 
-## A - Pseudo-code used
+## A - Pseudo-code derived from ABD for an Actor Model implementation
 
 ```python
-
 1  receive(request, sender)
 2    send(sender, answer(timestamp, key, value))
 
@@ -69,7 +68,7 @@ To interact with the key-value store, we will use two "root" methods symbolising
 12    /* The method of symmetry breaking we decided to use: taking the smallest value between
 13       that sent by the write request and that contained in the actor's register */
 
-14    if(new_timestamp > self.timestamp || (new_timestamp == self.timestamp && write.value < self.register(write.key))):
+14    if(write.timestamp > self.timestamp || (write.timestamp == self.timestamp && write.value < self.register(write.key))):
 15      self.register(write.key).value = write.value
 16      self.timestamp = write.timestamp
 
