@@ -49,7 +49,7 @@ To interact with the key-value store, we will use two "root" methods symbolising
 ```python
 
 1  receive(request, sender)
-2    send(sender, <timestamp, key, value>)
+2    send(sender, answer(timestamp, key, value))
 
 3  receive(answer, sender)
 4    answers.append(curr_answer)
@@ -57,51 +57,55 @@ To interact with the key-value store, we will use two "root" methods symbolising
 6      max_ts, v = getMaxTimestampValue(answers)
 7      send(all, write(max_ts+(1 if curr_operation == "put" else 0),
             (answer.value if curr_operation == "put" else v)))
+8    answers = []
 
-8    /* The only real difference between the put and the get is that the get sends write requests with the
-9       found timestamp/value instead of the current timestamp+1 and the value passed as an argument */
 
-10    answers = []
+9    /* The only real difference between the put and the get is that the get sends write requests with the
+10      found timestamp/value instead of the current timestamp+1 and the value passed as an argument */
 
-11  receive(writeAck, sender)
-12    answers_done.append(curr_answer)
-13    if (len(answers_done) <= N/2):
-14      answers_done = []
-15      if (curr_operation == "put"):
-16        self.waiting_put = false // Frees the actor from the put lock
-17        if (curr_write < N):
-18          send(self, put(key, value+self.pid))
-19        else:
-20          get(key)
-21      else:
-22        self.waiting_get = false // Frees the actor from the get lock
-23        if (curr_write < N):
-24          send(self, get(key))
-25        else:
-26          print("end")
 
-27  put(key, value)
-28    curr_write++
-29    self.waiting_put = true // Starts the put lock (forbids launching of next operation)
-30    send_all(request)
-31  get(key)
-32    curr_read++
-33    self.waiting_get = true // Starts the get lock (forbids launching of next operation)
-34    send_all(request)
+11  receive(write, sender)
 
-35  getMaxTimestampValue(answers)
-36    max_ack = max(answers, sort_by=timestamp)
-37    // All actors with max timestamp will have the same value thanks to symmetry breaking
-38    return max_ack.timestamp, max_ack.value
+12    /* The method of symmetry breaking we decided to use: taking the smallest value between
+13       that sent by the write request and that contained in the actor's register */
 
-39  write(new_timestamp, key, value)
-40    /* The method of symmetry breaking we decided to use: taking the smallest value between
-41       that sent by the write request and that contained in the actor's register */
-42    if(new_timestamp > self.timestamp || (new_timestamp == self.timestamp && value < self.register(key))):
-43      self.register(key).value = value
-44      self.timestamp = timestamp
+14    if(new_timestamp > self.timestamp || (new_timestamp == self.timestamp && write.value < self.register(write.key))):
+15      self.register(write.key).value = write.value
+16      self.timestamp = write.timestamp
 
-45    send(sender, writeAck)
+17    send(sender, writeAck())
+
+18  receive(writeAck, sender)
+19    answers_done.append(curr_answer)
+20    if (len(answers_done) <= N/2):
+21      answers_done = []
+22      if (curr_operation == "put"):
+23        self.waiting_put = false // Frees the actor from the put "lock"
+24        if (curr_write < N):
+25          send(self, put(key, value+self.pid))
+26        else:
+27          get(key)
+28      else:
+29        self.waiting_get = false // Frees the actor from the get "lock"
+30        if (curr_write < N):
+32          send(self, get(key))
+33        else:
+34          print("end")
+
+35  put(key, value)
+36    curr_write++
+37    self.waiting_put = true // Starts the put lock (forbids launching of next operation)
+38    send(all, request)
+
+39  get(key)
+40    curr_read++
+41    self.waiting_get = true // Starts the get lock (forbids launching of next operation)
+42    send(all, request)
+
+43  getMaxTimestampValue(answers)
+44    max_ack = max(answers, sort_by=timestamp)
+45    // All actors with max timestamp will have the same value thanks to symmetry breaking
+46    return max_ack.timestamp, max_ack.value
 ```
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;We will go into details to explain the pseudo-code inner workings and why it produces a correct robust NWNR atomic register in the second part of this report: "Proof of Correctness".
@@ -345,7 +349,7 @@ After that, the final `Write` in both operations is exactly the same (just with 
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Other than all the messages classes, receiver methods and actor attributes mentioned in part I. and III., there are many other variables we use for multiple purposes:
 
-- Defining operation schema: we considered that there are two types of operation schemes relevant to the system, alternating put and get operations and consecutive puts followed by consecutive gets. The `getMethod` attribute of `MyActor` (passed as a parameter to the constructor) controls which operation scheme is used: when `getMethod` is true, actors alternate between put and get operations (starting with a put, in total `2*M` operations), and when `getMethod` is false, the actors execute `M` puts followed by `M` gets. For debugging purpose, we also added a variable to disable get operations entirely: `launchGet`. When `launchGet` is true, gets will be launched, otherwise the actor will terminate after `M` puts.
+- Defining an operation schema: we considered that there are two types of operation schemes relevant to the system, alternating put and get operations and consecutive puts followed by consecutive gets. The `getMethod` attribute of `MyActor` (passed as a parameter to the constructor) controls which operation scheme is used: when `getMethod` is true, actors alternate between put and get operations (starting with a put, in total `2*M` operations), and when `getMethod` is false, the actors execute `M` puts followed by `M` gets. For debugging purpose, we also added a variable to disable get operations entirely: `launchGet`. When `launchGet` is true, gets will be launched, otherwise the actor will terminate after `M` puts.
 
 - Knowing details about the current operation: to keep track of the operation, we pass extra arguments to most messages in the system, that will be propagated through the different phases of the operation (reading phase, waiting phase, writing phase...) ; we put the information in the message themselves instead of extra attributes for debugging purposes, to reduce the number of total attributes, and to be able to customize a whole chain of operations with every new `Launch` message.
 
